@@ -1,0 +1,14 @@
+// Text-to-Speech for messages
+function speakMessage(message) {
+  const synth = window.speechSynthesis;
+  const utter = new SpeechSynthesisUtterance(message);
+  synth.speak(utter);
+}
+
+socket.on("receive_message", (data) => {
+  const div = document.createElement("div");
+  div.className = "chat";
+  div.textContent = data;
+  chatBox.appendChild(div);
+  speakMessage(data);  // <-- speak the message
+});

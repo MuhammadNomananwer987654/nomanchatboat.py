@@ -1,0 +1,83 @@
+<script>
+    const socket = io();
+    const chatBox = document.getElementById("chatBox");
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo");
+    let localStream;
+    let peerConnection;
+    const config = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    };
+  
+    socket.on("receive_message", (data) => {
+      const div = document.createElement("div");
+      div.className = "chat";
+      div.textContent = data;
+      chatBox.appendChild(div);
+      speakMessage(data);
+    });
+  
+    function sendMessage() {
+      const msg = document.getElementById("messageInput").value;
+      socket.emit("send_message", msg);
+      document.getElementById("messageInput").value = "";
+    }
+  
+    // Camera + Audio Setup
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => {
+        localVideo.srcObject = stream;
+        localStream = stream;
+  
+        socket.emit("join");
+      });
+  
+    socket.on("offer", async (offer) => {
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+  
+      peerConnection.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+  
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+  
+      socket.emit("answer", answer);
+    });
+  
+    socket.on("answer", (answer) => {
+      peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+  
+    socket.on("candidate", (candidate) => {
+      if (peerConnection) {
+        peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    });
+  
+    socket.on("join", async () => {
+      peerConnection = new RTCPeerConnection(config);
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+  
+      peerConnection.ontrack = event => {
+        remoteVideo.srcObject = event.streams[0];
+      };
+  
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      socket.emit("offer", offer);
+  
+      peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+          socket.emit("candidate", event.candidate);
+        }
+      };
+    });
+  </script>
+  
